@@ -1,5 +1,5 @@
+import { type Server } from 'node:http'
 import express from 'express'
-import cors, { type CorsOptions } from 'cors'
 import helmet from 'helmet'
 import { config } from './config/env'
 import { errorHandler } from './middleware/errorHandler'
@@ -11,7 +11,6 @@ import { startAgentLoop, stopAgentLoop } from './agent/loop'
 import { connectDb } from './db'
 import { scheduleSessionCleanup } from './jobs/sessionCleanup'
 import { startEventListener, stopEventListener } from './stellar/events'
-import { DeadLetterQueue } from './stellar/dlq'
 import healthRouter from './routes/health'
 import agentRouter from './routes/agent'
 import authRouter from './routes/auth'
@@ -43,7 +42,7 @@ const serviceStatus: Record<string, ServiceStatus> = {
 }
 
 let isShuttingDown = false
-let httpServer: http.Server | null = null
+let httpServer: Server | null = null
 const REQUEST_DRAIN_TIMEOUT_MS = 30000
 
 function allServicesReady(): boolean {
