@@ -113,7 +113,7 @@ function validateStellarKey(secretKey: string, network: 'testnet' | 'mainnet' | 
   logger.info(`✓ Stellar Agent configured for ${network.toUpperCase()} (NODE_ENV=${env})`)
 
   if (network === 'mainnet' && env !== 'production') {
-    logger.warn(
+    console.warn(
       '\n⚠️  CRITICAL WARNING: Using MAINNET in non-production environment!\n' +
         '⚠️  This could result in real financial loss!\n' +
         '⚠️  Verify STELLAR_NETWORK and NODE_ENV settings immediately!\n'
