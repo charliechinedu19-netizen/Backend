@@ -4,10 +4,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import { JwtAdapter, config } from '../config';
 import { logger } from '../utils/logger';
 import db from '../db';
-import {
-  stellarVerification,
-  _nonceStoreForTests as nonceStore,
-} from '../utils/stellar/stellar-verification';
+import { stellarVerification } from '../utils/stellar/stellar-verification';
 
 // Controllers
 
@@ -19,6 +16,8 @@ import {
  *
  * Issues a one-time nonce tied to the caller's Stellar public key.
  * The nonce must be signed and returned to /verify within 5 minutes.
+ * Nonces are persisted in Postgres so they survive restarts and work
+ * correctly across multiple app instances.
  */
 export async function challenge(req: Request, res: Response): Promise<void> {
   const { stellarPubKey } = req.body as { stellarPubKey?: string };
@@ -36,18 +35,26 @@ export async function challenge(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  stellarVerification.purgeExpiredNonces();
+  // Purge expired nonces (lazy cleanup — harmless if it fails)
+  db.authNonce
+    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(() => {});
 
   const nonce = `nw-auth-${randomBytes(32).toString('hex')}`;
-  const expiresAt = Date.now() + config.jwt.nonce_ttl_ms;
+  const expiresAt = new Date(Date.now() + config.jwt.nonce_ttl_ms);
 
-  nonceStore.set(stellarPubKey, { nonce, expiresAt, stellarPubKey });
+  // Upsert so a second challenge for the same key overwrites the old nonce
+  await db.authNonce.upsert({
+    where: { stellarPubKey },
+    create: { stellarPubKey, nonce, expiresAt },
+    update: { nonce, expiresAt },
+  });
 
   logger.info(`[Auth] Challenge issued for ${stellarPubKey}`);
 
   res.status(200).json({
     nonce,
-    expiresAt: new Date(expiresAt).toISOString(),
+    expiresAt: expiresAt.toISOString(),
   });
 }
 
@@ -77,15 +84,15 @@ export async function verify(req: Request, res: Response): Promise<void> {
   }
 
   // 1. Look up nonce
-  const stored = nonceStore.get(stellarPubKey);
+  const stored = await db.authNonce.findUnique({ where: { stellarPubKey } });
   if (!stored) {
     res.status(401).json({ error: 'No active challenge for this public key' });
     return;
   }
 
   // 2. Check nonce expiry
-  if (stored.expiresAt <= Date.now()) {
-    nonceStore.delete(stellarPubKey);
+  if (stored.expiresAt <= new Date()) {
+    await db.authNonce.delete({ where: { stellarPubKey } }).catch(() => {});
     res.status(401).json({ error: 'Challenge nonce has expired' });
     return;
   }
@@ -102,7 +109,7 @@ export async function verify(req: Request, res: Response): Promise<void> {
   }
 
   // 4. Consume nonce — prevents replay attacks
-  nonceStore.delete(stellarPubKey);
+  await db.authNonce.delete({ where: { stellarPubKey } }).catch(() => {});
 
   const network = stellarVerification.resolveNetwork();
 
@@ -185,6 +192,3 @@ export async function logout(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
-
-// Re-export so tests can import from either the controller or stellar-verification
-export { _nonceStoreForTests } from '../utils/stellar/stellar-verification';
