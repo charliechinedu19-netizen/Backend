@@ -106,7 +106,7 @@ The API applies layered rate limits (all configurable via `.env`):
 
 **Bypass (trusted services only):** set `TRUSTED_IPS` to a comma-separated allowlist of IPs, or send the shared secret in the `X-Internal-Token` header (`INTERNAL_SERVICE_TOKEN`). Mount order matters: the bypass middleware runs before limiters in `src/index.ts`.
 
-For production secret handling, migrations, and rollback steps see `docs/PRODUCTION_DEPLOYMENT.md`.
+For production secret handling, migrations, and rollback steps see `docs/DEPLOYMENT_PRODUCTION.md`.
 
 Testing
 -------
