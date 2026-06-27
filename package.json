@@ -19,6 +19,10 @@
     "test": "jest",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration",
+    "test:load:smoke": "k6 run tests/load/smoke.js",
+    "test:load": "k6 run tests/load/load.js",
+    "test:load:stress": "k6 run tests/load/stress.js",
+    "test:load:soak": "k6 run tests/load/soak.js",
     "prisma:generate": "npx prisma generate"
   },
   "jest": {
